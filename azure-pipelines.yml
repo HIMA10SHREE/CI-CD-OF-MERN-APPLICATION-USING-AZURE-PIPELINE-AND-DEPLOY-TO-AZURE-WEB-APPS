@@ -1,0 +1,102 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- main
+
+# variables:
+#   PORT: $(PORT)
+#   REACT_APP_API: $(REACT_APP_API)
+#   MONGO_URL: $(MONGO_URL)
+#   JWT_SECRET: $(JWT_SECRET)
+
+
+
+
+pool:
+  vmImage: ubuntu-latest
+
+
+
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSource: 'spec'
+    versionSpec: '18.18.0'
+
+    #  ls -lrta
+    
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+     cd $(System.DefaultWorkingDirectory)/client
+     npm install
+     npm i nodemon
+     touch .env
+     REACT_APP_API= $(REACT_APP_API) >> .env
+     cat .env
+     npm run build
+     ls -lrta $(System.DefaultWorkingDirectory)/client
+
+    #  npm run build
+    
+- task: Bash@3
+  inputs:
+    targetType: 'inline'
+    script: |
+      cd $(System.DefaultWorkingDirectory)
+      npm install
+      npm i nodemon
+      npm i path
+      touch .env
+      MONGO_URL=$(MONGO_URL)>> .env
+      PORT=$(PORT) >> .env
+      JWT_SECRET=$(JWT_SECRET) >> .env
+      cat .env
+      ls -lrta $(System.DefaultWorkingDirectory)
+
+
+- task: Docker@0
+  inputs:
+    containerregistrytype: 'Azure Container Registry'
+    azureSubscription: 'Service-Connection-TECH-DEMO'
+    azureContainerRegistry: '{"loginServer":"acrwebapp1.azurecr.io", "id" : "/subscriptions/55dd3384-2263-4ac8-9b80-09308ab7787f/resourceGroups/rg-webapp-01/providers/Microsoft.ContainerRegistry/registries/acrwebapp1"}'
+    action: 'Build an image'
+    dockerFile: '**/Dockerfile'
+    imageName: 'webapp:$(Build.BuildId)'
+  
+
+
+- task: Docker@0
+  displayName: Push docker image
+  inputs:
+    containerregistrytype: 'Azure Container Registry'
+    azureSubscription: 'Service-Connection-TECH-DEMO'
+    azureContainerRegistry: '{"loginServer":"acrwebapp1.azurecr.io", "id" : "/subscriptions/55dd3384-2263-4ac8-9b80-09308ab7787f/resourceGroups/rg-webapp-01/providers/Microsoft.ContainerRegistry/registries/acrwebapp1"}'
+    action: 'Push an image'
+    imageName: 'webapp:$(Build.BuildId)'
+
+# - task: AzureWebAppContainer@1
+#   inputs:
+#     azureSubscription: 'Service-Connection-TECH-DEMO'
+#     appName: 'react-webapp11'
+#     containers: 'acrwebapp1.azurecr.io/webapp:276'
+#     containerCommand: 'npm run dev'
+
+
+- task: AzureRmWebAppDeployment@4
+  inputs:
+    ConnectionType: 'AzureRM'
+    azureSubscription: 'Service-Connection-TECH-DEMO'
+    appType: 'webAppContainer'
+    WebAppName: 'app-webapps11'
+    DockerNamespace: 'acrwebapp1.azurecr.io'
+    DockerRepository: 'webapp'
+    DockerImageTag: '$(Build.BuildId)'
+    StartupCommand: 'npm run dev'
+
+
